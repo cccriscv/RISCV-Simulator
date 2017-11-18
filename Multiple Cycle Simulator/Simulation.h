@@ -10,21 +10,21 @@ using namespace std;
 
 #define MAX 100000000
 
-// Memory
+/* Memory */
 unsigned char memory[MAX]={0};
-// Registers
+/* Registers*/
 REG reg[32]={0};
-// PC
-int PC=0;
+/* PC */
+int PC_=0;
 
-// whether to debug step by step
+/* whether to debug step by step */
 bool single_step = false;
 
-// whether to run until a specific instruction
+/* whether to run until a specific instruction */
 bool run_til = false;
 unsigned int pause_addr = 0;
 
-//各个指令解析段
+/* parts of instruction */
 unsigned int opcode=0;
 unsigned int func3=0,func7=0;
 int shamt=0;
@@ -35,7 +35,7 @@ unsigned int imm7=0;
 unsigned int imm5=0;
 unsigned long long imm=0; // the sign-extended immediate number
 
-// Control signal
+/* Control signal */
 char MemRead;
 char MemWrite;
 char MemtoReg;
@@ -47,9 +47,15 @@ char PCSrc;
 char ExtOp;
 char data_type;
 
-// inner registers
+/* inner registers */
 unsigned long long alu_rst;  // might also be data_to_reg
 unsigned long long data_from_memory;  // data read out from M[alu_rst]
+
+/* CPI related */
+long long inst_num = 0;  // number of instructions executed
+long long cycle_num = 0;  // number of clock cycles
+
+int exit_flag=0;  // whether there's a system call
 
 string reg_names[32] = {"r0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
     "s0/fp", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
@@ -62,6 +68,7 @@ string blank = "         ";
 extern unsigned int find_addr(string);
 void load_memory();
 void simulate();
+
 void fetch_instruction(int);
 void decode(int);
 void fill_control_R(int);
@@ -76,10 +83,10 @@ void write_back(int);
 
 unsigned int getbit(unsigned inst,int s,int e);
 unsigned long long ext_signed(unsigned int src,int bit);
-unsigned char read_memory_byte(unsigned int start);
-unsigned short read_memory_half(unsigned int start);
-unsigned int read_memory_word(unsigned int start);
-unsigned long long read_memory_doubleword(unsigned int start);
+unsigned char read_memory_byte(unsigned long long start);
+unsigned short read_memory_half(unsigned long long start);
+unsigned int read_memory_word(unsigned long long start);
+unsigned long long read_memory_doubleword(unsigned long long start);
 unsigned char get_byte(unsigned long long reg_info, int ind);
 void write_to_memory(unsigned long long start, unsigned long long reg_info, int num);
 void print_register();
@@ -91,7 +98,9 @@ void single_step_mode_description();
 bool debug_choices();
 void end_check();
 void end_description();
-
+void print_control_info(int);
+void update_cpi(int);
+void print_cpi();
 
 /* signed extension of byte/half/word to doubleword
  bit: the index of sign bit(for byte, bit = 7)
@@ -404,3 +413,64 @@ void write_inst_info(int index){
     info[index].rd = rd;
 }
 
+/* print out control info in info[index] */
+void print_control_info(int index){
+    string yn_[2] = {"NO", "YES"};
+    string ALUOp_[20] = {"ADD", "SUB", "MUL", "DIV", "SLL", "XOR", "SRA", "SRL",
+        "OR", "AND", "REM", "EQ", "NEQ", "GT", "LT", "GE", "MULH", "SLT"};
+    string ALUSrcA_[5] = {"R_RS1", "PROGRAM_COUNTER", "ZERO"};
+    string ALUSrcB_[5] = {"R_RS2", "IMM", "IMM_05", "IMM_SLL_12", "FOUR"};
+    string PCSrc_[5] = {"NORMAL", "R_RS1_IMM", "PC_IMM"};
+    string data_type_[5] = {"BYTE", "HALF", "WORD", "DOUBLEWORD"};
+    
+    cout << "MemRead: " << yn_[info[index].MemRead] << endl;
+    cout << "MemWrite: " << yn_[info[index].MemWrite] << endl;
+    cout << "MemtoReg: " << yn_[info[index].MemtoReg] << endl;
+    cout << "RegWrite: " << yn_[info[index].RegWrite] << endl;
+    cout << "ALUSrcA: " << ALUSrcA_[info[index].ALUSrcA] << endl;
+    cout << "ALUSrcB: " << ALUSrcB_[info[index].ALUSrcB] << endl;
+    cout << "ALUOp: " << ALUOp_[info[index].ALUOp] << endl;
+    cout << "PCSrc: " << PCSrc_[info[index].PCSrc] << endl;
+    cout << "ExtOp: " << yn_[info[index].ExtOp] << endl;
+    cout << "data_type: " << data_type_[info[index].data_type] << endl;
+    cout << separator << endl;
+}
+
+/* update cycle accordingly */
+void update_cpi(int index){
+    // cout << "update cpi" << endl;
+    
+    inst_num += 1;
+    
+    cycle_num += 4;  // IF, DC, M, WB only takes 1 cycle
+    
+    switch (info[index].ALUOp) {
+        case MUL:
+            if(info[index].data_type == WORD){
+                cout << "32mul"<< endl;
+                cycle_num += 1;
+            }
+            else{
+                cout << "mul"<< endl;
+                cycle_num += 2;
+            }
+            break;
+            
+        case DIV:
+        case REM:
+            cout << "div"<< endl;
+            cycle_num += 40;
+            break;
+            
+        default:
+            cycle_num += 1;
+            break;
+    }
+}
+
+void print_cpi(){
+    cout << separator << endl;
+    cout << "Cycle Count: " << dec << cycle_num << endl;
+    cout << "Instruction Count: " << dec << inst_num << endl;
+    cout << "CPI = " << (float)cycle_num / (float)inst_num << endl;
+}

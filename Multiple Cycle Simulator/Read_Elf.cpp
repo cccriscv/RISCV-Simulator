@@ -191,6 +191,9 @@ void read_elf_sections()
         else if(strcmp(section_name, ".strtab") == 0){ // symbols' name table
             stradr = elf64_shdr.sh_offset;
         }
+        else if(strcmp(section_name, ".sdata") == 0){
+            dsize += elf64_shdr.sh_size;  // also load this in.
+        }
  	}
 }
 

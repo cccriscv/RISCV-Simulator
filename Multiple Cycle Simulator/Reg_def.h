@@ -1,6 +1,6 @@
 typedef unsigned long long REG;
 
-// Instruction and Control Signals
+/* Instruction and Control Signals */
 struct Instruction_Related{
     /* Instruction related */
     unsigned int inst;
@@ -11,38 +11,23 @@ struct Instruction_Related{
     int rd;
     
     /* Control Signal */
-//    char PCWrite;
-//    char PCWriteCond;
-//    char IorD;
     char MemRead;
     char MemWrite;
     char MemtoReg;
-//    char IRWrite;  // instruction register, for instruction fetch
-//    char RegDst;
     char RegWrite;
     char ALUSrcA;
     char ALUSrcB;
     char ALUOp;
     char PCSrc;
-//    char BrWr;
     char ExtOp;
     
     /* inner register */
     unsigned long long alu_rst;  // might also be data_to_reg
-    // unsigned long long data_to_memory;  // data that would be written to M[alu_rst]
     unsigned long long data_from_memory;  // data read out from M[alu_rst]
     
     /* data type */
     char data_type; // related to M read/write
 }info[5];
-
-
-
-struct IFID{
-	unsigned int inst;
-	int PC; // the addr of this inst
-}IF_ID,IF_ID_old;
-
 
 #define NO 0
 #define YES 1
@@ -69,7 +54,7 @@ struct IFID{
 
 // ALU_SrcA
 #define R_RS1 0
-#define PC 1
+#define PROGRAM_COUNTER 1
 #define ZERO 2
 
 // ALU_SrcB
@@ -81,13 +66,11 @@ struct IFID{
 
 // PC_Src
 #define NORMAL 0  // plus 4
-#define R_RS1_IMM  // R[rs1] + imm
-#define PC_IMM  // PC + imm
-#define PC_IMM_12  // PC + (imm << 12)
+#define R_RS1_IMM  1 // R[rs1] + imm
+#define PC_IMM 2 // PC + imm
 
 // data_type
 #define BYTE 0
 #define HALF 1
 #define WORD 2
 #define DOUBLEWORD 3
-

@@ -27,7 +27,14 @@
      其他时候针对的是execute的结果
  17) 对于jalr，跳转肯定会发生啊宝贝！
  18）什么时候需要把写入内存的数据准备好呢？
+ 19）在执行过程中，把pc准备好.
+     从执行过程往后，info[index].PC中存储的就是下一条指令的地址了
+ 20）slli的func7好像没有设置过哦。因为那个地方也是imm的位置。
+ 21）然后fill_out_control里面的func3啥的最好换成info[index].func3，为流水线做准备
+ 22）很奇怪。跑6.cpp的时候发现全局变量int result=15;被放在.sdata段里面，所以没有被load进来
+     多load进来一点好了！
  */
+
 #include "Simulation.h"
 #include <iostream>
 #include <stdio.h>
@@ -51,20 +58,9 @@ extern unsigned int pause_addr;
 extern FILE *file;
 extern FILE *ftmp;
 
-// #define DEBUG
-#define NO_INF
+#define DEBUG
 
-//指令运行数
-long long inst_num=0;
-
-//系统调用退出指示
-int exit_flag=0;
-
-// whether the instruction changed the PC by itself
-bool update_PC = false;
-
-//加载代码段
-//初始化PC
+/* load data and instructions */
 void load_memory()
 {
     /* load .text */
@@ -77,14 +73,20 @@ void load_memory()
 }
 
 void fetch_instruction(int index){
+#ifdef DEBUG
+    cout << "entered fetch-instruction" << endl;
+#endif
+    
     /* put instruction in info[index] */
-    info[index].inst = read_memory_word(PC);
-    info[index].PC = PC;
-    // PC += 4;
+    info[index].inst = read_memory_word(info[index].PC);
 }
 
 /* decode and execute */
 void decode(int index){
+#ifdef DEBUG
+    cout << "entered decode" << endl;
+#endif
+    
     unsigned int inst = info[index].inst;
     unsigned int tmp;
     
@@ -111,6 +113,7 @@ void decode(int index){
             rd = getbit(inst, 7, 11);
             func3 = getbit(inst, 12, 14);
             rs1 = getbit(inst, 15, 19);
+            func7 = getbit(inst, 25, 31);
             imm12 = getbit(inst, 20, 31);
             imm = ext_signed((unsigned int)imm12, 11);
             
@@ -123,6 +126,7 @@ void decode(int index){
             func3 = getbit(inst, 12, 14);
             rs1 = getbit(inst, 15, 19);
             rs2 = getbit(inst, 20, 24);
+            func7 = getbit(inst, 25, 31);
             imm7 = getbit(inst, 25, 31);
             tmp = (imm7 << 5) | imm5;
             imm = ext_signed(tmp, 11);
@@ -135,6 +139,7 @@ void decode(int index){
             func3 = getbit(inst, 12, 14);
             rs1 = getbit(inst, 15, 19);
             rs2 = getbit(inst, 20, 24);
+            func7 = getbit(inst, 25, 31);
             tmp = (getbit(inst, 8, 11) << 1) | (getbit(inst, 25, 30) << 5) | (getbit(inst, 7, 7) << 11) | (getbit(inst, 31, 31) << 12);
             imm = ext_signed(tmp, 12);
             
@@ -146,6 +151,7 @@ void decode(int index){
         case 0x37:
             rd = getbit(inst, 7, 11);
             imm20 = getbit(inst, 12, 31);
+            func7 = getbit(inst, 25, 31);
             tmp = imm20;// << 12;
             imm = ext_signed(tmp, 31);
             
@@ -155,6 +161,7 @@ void decode(int index){
             /* UJ */
         case 0x6f:
             rd = getbit(inst, 7, 11);
+            func7 = getbit(inst, 25, 31);
             tmp = (getbit(inst, 12, 19) << 12) | (getbit(inst, 20, 20) << 11) | (getbit(inst, 21, 30) << 1) | (getbit(inst, 31, 31) << 20);
             imm = ext_signed(tmp, 20);
             
@@ -178,8 +185,12 @@ void decode(int index){
 }
 
 void fill_control_R(int index){
+#ifdef DEBUG
+    cout << "entered fill_control_R()" << endl;
+#endif
+    
     ALUSrcA = R_RS1;
-    ALUSrcB = R_SRCB;
+    ALUSrcB = R_RS2;
     MemRead = NO;
     MemWrite = NO;
     MemtoReg = NO;
@@ -295,31 +306,37 @@ void fill_control_R(int index){
                 case 0x0:
                     if(func7 == 0x00){ // addw rd, rs1, rs2
                         //reg[rd] = 0xffffffff & (reg[rs1] + reg[rs2]);
-                        ALUOp = SUBW;
+                        ALUOp = ADD;
                     }
                     else if(func7 == 0x20){ // subw rd, rs1, rs2
 //                        reg[rd] = 0xffffffff & (reg[rs1] - reg[rs2]);
-                        ALUOp = SUBW;
+                        ALUOp = SUB;
                     }
                     else if(func7 == 0x01){ // mulw rd, rs1, rs2
 //                        reg[rd] = reg[rs1] * reg[rs2];
-                        ALUOp = MULW;
+                        ALUOp = MUL;
                     }
                     break;
+                    
                 case 0x1: // sllw
 //                    reg[rd] = 0xffffffff & (reg[rs1] << reg[rs2]);
-                    ALUOp = SLLW;
+                    ALUOp = SLL;
                     break;
+                    
+                case 0x4: // divw
+                    ALUOp = DIV;
+                    break;
+                    
                 case 0x5:
                     if(func7 == 0x00){ // srlw rd, rs1, rs2
 //                        reg[rd] = 0xffffffff & (reg[rs1] >> reg[rs2]);
-                        ALUOp = SRLW;
+                        ALUOp = SRL;
                     }
                     else{ // sraw rd, rs1, rs2
 //                        reg[rd] = reg[rs1] >> reg[rs2];
 //                        reg[rd] = 0xffffffff & ext_signed(reg[rd], 63 - (int)reg[rs2]);
-                        ALUOp = SRAW;
-                        EXT_OP = YES;
+                        ALUOp = SRA;
+                        ExtOp = YES;
                     }
                     break;
             }
@@ -475,7 +492,7 @@ void fill_control_I(int index){
 //                    PC = reg[rs1] + imm; // the last bit is set to 0
 //                    reg[rd] = reg[31];
 //                    update_PC = true;
-                    ALUSrcA = PC;
+                    ALUSrcA = PROGRAM_COUNTER;
                     ALUSrcB = FOUR;
                     ALUOp = ADD;
                     MemRead = NO;
@@ -505,6 +522,10 @@ void fill_control_I(int index){
 }
 
 void fill_control_S(int index){
+#ifdef DEBUG
+    cout << "entered fill_control_S()" << endl;
+#endif
+    
     switch (opcode){
         case 0x23:
             ALUSrcA = R_RS1;
@@ -554,32 +575,32 @@ void fill_control_SB(int index){
             data_type = DOUBLEWORD;
             
             if(func3 == 0x0){ // beq rs1, rs2, offset
-                if(reg[rs1] == reg[rs2]){
+//                if(reg[rs1] == reg[rs2]){
 //                    PC = PC + imm;
 //                    update_PC = true;
-                    ALUOp = EQ;
-                }
+//                }
+                ALUOp = EQ;
             }
             else if(func3 == 0x1){ // bne rs1, rs2, offset
-                if(reg[rs1] != reg[rs2]){
+//                if(reg[rs1] != reg[rs2]){
 //                    PC = PC + imm;
 //                    update_PC = true;
-                    ALUOp = NEQ;
-                }
+//                }
+                ALUOp = NEQ;
             }
             else if(func3 == 0x4){ // blt rs1, rs2, offset
-                if(reg[rs1] < reg[rs2]){
+//                if(reg[rs1] < reg[rs2]){
 //                    PC = PC + imm;
 //                    update_PC = true;
-                    ALUOp = LT;
-                }
+//                }
+                ALUOp = LT;
             }
             else if(func3 == 0x5){ // bge rs1, rs2, offset
-                if(reg[rs1] >= reg[rs2]){
+//                if(reg[rs1] >= reg[rs2]){
 //                    PC = PC + imm;
 //                    update_PC = true;
-                    ALUOp = GE;
-                }
+//                }
+                ALUOp = GE;
             }
             break;
     }
@@ -589,12 +610,16 @@ void fill_control_SB(int index){
 }
 
 void fill_control_U(int index){
+#ifdef DEBUG
+    cout << "entered fill_control_U()" << endl;
+#endif
+    
     switch (opcode){
         case 0x17: // auipc rd, offset
 //            reg[rd] = PC + (imm << 12);
-            ALUSrcA = PC;
+            ALUSrcA = PROGRAM_COUNTER;
             ALUSrcB = IMM_SLL_12;
-            data_type = ADD;
+            ALUOp = ADD;
             MemRead = NO;
             MemWrite = NO;
             MemtoReg = NO;
@@ -608,7 +633,7 @@ void fill_control_U(int index){
 //            reg[rd] = imm << 12;
             ALUSrcA = ZERO;
             ALUSrcB = IMM_SLL_12;
-            data_type = ADD;
+            ALUOp = ADD;
             MemRead = NO;
             MemWrite = NO;
             MemtoReg = NO;
@@ -624,12 +649,16 @@ void fill_control_U(int index){
 }
 
 void fill_control_UJ(int index){
+#ifdef DEBUG
+    cout << "entered fill_control_UJ()" << endl;
+#endif
+    
     switch (opcode){
         case 0x6f: // jal rd, imm
 //            reg[rd] = PC + 4;
 //            PC = PC + imm;
 //            update_PC = true;
-            ALUSrcA = PC;
+            ALUSrcA = PROGRAM_COUNTER;
             ALUSrcB = FOUR;
             data_type = ADD;
             MemRead = NO;
@@ -647,6 +676,11 @@ void fill_control_UJ(int index){
 }
 
 void execute(int index){
+#ifdef DEBUG
+    cout << "entered execute()" << endl;
+#endif
+    // print_control_info(index);
+    
     unsigned long long op1;
     unsigned long long op2;
     int ext_pos;  // the index of sign bit
@@ -668,6 +702,9 @@ void execute(int index){
         default:
             ext_pos = 63;
     }
+#ifdef DEBUG
+    cout << "entered data_type switch" << endl;
+#endif
     
     /* the first operand */
     switch(info[index].ALUSrcA){
@@ -675,14 +712,17 @@ void execute(int index){
             op1 = reg[info[index].rs1];
             break;
             
-        case PC:
-            op1 = reg[info[index].PC];
+        case PROGRAM_COUNTER:
+            op1 = info[index].PC;
             break;
             
         case ZERO:
             op1 = 0;
             break;
     }
+#ifdef DEBUG
+    cout << "entered ALUSrcA switch" << endl;
+#endif
 
     /* the second operand */
     switch (info[index].ALUSrcB) {
@@ -706,6 +746,9 @@ void execute(int index){
             op2 = 4;
             break;
     }
+#ifdef DEBUG
+    cout << "entered ALUSrcB switch" << endl;
+#endif
     
     /* which operation */
     switch(info[index].ALUOp){
@@ -769,6 +812,11 @@ void execute(int index){
             
         case GE:
             alu_rst = (op1 >= op2);
+            cout << "in GE: alu_rst = " << alu_rst << endl;
+            break;
+        
+        case SLT:  // change to signed number
+            alu_rst = ((long long)op1 < (long long)op2);
             break;
             
         case MULH:
@@ -781,14 +829,13 @@ void execute(int index){
             long long al_mul_bh = ((al * bh) >> 32) & 0xffff;
             alu_rst = ah_mul_bh + ah_mul_bl + al_mul_bh;
             break;
-            
-        case SLT:  // change to signed number
-            alu_rst = ((long long)op1 < (long long)op2);
-            break;
     }
+#ifdef DEBUG
+    cout << "entered ALUOp switch" << endl;
+#endif
     
     /* sign extending */
-    if(info[index].EXT_OP && info[index].MemRead == NO){
+    if(info[index].ExtOp && info[index].MemRead == NO){
         alu_rst = ext_signed(alu_rst, ext_pos);
     }
     
@@ -799,29 +846,70 @@ void execute(int index){
     
     /* store alu_rst back to info[index] */
     info[index].alu_rst = alu_rst;
+    
+    /* update PC */
+    switch(info[index].PCSrc){
+        case NORMAL:
+#ifdef DEBUG
+            cout << "entered branch NORMAL" << endl;
+#endif
+            
+            info[index].PC += 4;
+            break;
+            
+        case R_RS1_IMM:
+#ifdef DEBUG
+            cout << "entered branch R_RS1_IMM" << endl;
+#endif
+            info[index].PC = reg[info[index].rs1] + info[index].imm;
+            break;
+            
+        case PC_IMM:
+#ifdef DEBUG
+            cout << "entered branch PC_IMM" << endl;
+#endif
+            if(info[index].alu_rst != 0){
+#ifdef DEBUG
+                cout << "WILL CHANGE PC!" << endl;
+#endif
+                info[index].PC += info[index].imm;
+            }
+            else{
+                info[index].PC += 4;
+            }
+            break;
+    }
+#ifdef DEBUG
+    cout << "entered PC switch! " << endl;
+#endif
 }
 
 void memory_read_write(int index){
+#ifdef DEBUG
+    cout << "entered memory_read_write()" << endl;
+#endif
+    
     if(info[index].MemRead == YES){
         switch(info[index].data_type){
             case BYTE:
                 data_from_memory = read_memory_byte(info[index].alu_rst);
+                data_from_memory = ext_signed(data_from_memory, 7);
                 break;
                 
             case HALF:
                 data_from_memory = read_memory_half(info[index].alu_rst);
+                data_from_memory = ext_signed(data_from_memory, 15);
                 break;
                 
             case WORD:
                 data_from_memory = read_memory_word(info[index].alu_rst);
+                data_from_memory = ext_signed(data_from_memory, 31);
                 break;
                 
             case DOUBLEWORD:
                 data_from_memory = read_memory_doubleword(info[index].alu_rst);
                 break;
         }
-        /* sign extension */
-        data_from_memory = ext_signed(data_from_memory, ext_pos);
         
         /* write data_from_memory to info[index] */
         info[index].data_from_memory = data_from_memory;
@@ -849,6 +937,10 @@ void memory_read_write(int index){
 }
 
 void write_back(int index){
+#ifdef DEBUG
+    cout << "entered write_back()" << endl;
+#endif
+    
     if(info[index].RegWrite == YES){
         if(info[index].MemtoReg == YES){
             reg[info[index].rd] = info[index].data_from_memory;
@@ -861,66 +953,54 @@ void write_back(int index){
 
 void simulate()
 {
-    //结束PC的设置
-    int end=(int)endPC - 4; // the addr of 'ret' in main()
+    /* set when to end, the PC of atexit */
+    int end=(int)endPC - 8; // the addr of 'ret' in main()
+    if (end % 4 == 2){  // wierd actually.
+        end -= 2;
+    }
+#ifdef DEBUG
+    cout << "endPC: " << hex << end << endl;
+#endif
     
     if(single_step){
         single_step_mode_description();
-        // cout << "Please hit 'g' to start."<< endl;
     }
     
-    while(IF_ID.PC != end)
+    info[0].PC =  PC_;  // intialized as entry
+    
+    while(info[0].PC != end)
     {
-        /* execute */
-        fetch_instruction();
-        decode();
+        reg[0] = 0; // 一直为零
+        
+        if (run_til && info[0].PC == pause_addr){
+            single_step = true;
+            run_til = false;
+        }
+        
+        /* five steps */
+        fetch_instruction(0);
+        decode(0);
+        execute(0);
+        memory_read_write(0);
+        write_back(0);
 
 #ifdef DEBUG
-        if (IF_ID.inst == 0 && inst_num != 0){
-            cerr << "Something went wrong with the instruction fetched"<< endl;
-            break;
-        }
-        if(inst_num < -1){
-            cerr << "probably stuck in endless loops."<< endl;
-            break;
-        }
-        cout << "The " << dec << inst_num << " instruction: " << hex << setw(8) << setfill('0') << IF_ID.inst << endl;
-        cout << "PC: " << PC << endl;
-        cout << endl;
+        print_control_info(0);
 #endif
- 
-#ifdef NO_INF
-        if(inst_num > 1000){
-            //cerr << "probably stuck in endless loops."<< endl;
-            break;
-        }
-#endif
+        
         if(exit_flag==1){
             cerr << "Can not simulate system calls." << endl;
             break;
         }
-        
-        reg[0] = 0;//一直为零
-        
-        // Update PC [no pipeline]
-        if (!update_PC)
-            PC += 4;
-        
-        if (run_til)
-            if (IF_ID.PC == pause_addr){
-                single_step = true;
-                run_til = false;
-            }
-        
+    
         if(single_step){
-            cout << "The " << dec << inst_num << " instruction: " << hex << setw(8) << setfill('0') << IF_ID.inst << endl;
-            cout << "PC: " << PC << endl;
-            // cout << "IF_ID.PC: " << IF_ID.PC << endl;
+            cout << "The " << dec << inst_num << " instruction: " << hex << setw(8) << setfill('0') << info[0].inst << endl;
+            cout << "PC: " << info[0].PC << endl;
             debug_choices();
         }
         
-        update_PC = false;
-        inst_num += 1;
+        /* update CPI accordingly */
+        update_cpi(0);
     }
 }
 
@@ -954,20 +1034,21 @@ int main(int argc, char * argv[])
             cerr << "Can not understand. Please input 'y' or 'n'."<< endl;
     }
     
-	//解析elf文件
-	read_elf(file_name);
-	
-    load_memory(); //加载内存
-    PC = entry; //设置入口地址
-    reg[3]=gp; //设置全局数据段地址寄存器
-    reg[2]=MAX/2;//栈基址 （sp寄存器）
+    /* preparations */
+	read_elf(file_name);  // explain the ELF file
+    load_memory();
+    PC_ = entry; // set the entrance PC
+    reg[3]=gp; // set the global pointer
+    reg[2]=MAX / 2; // set the stack pointer
 
+    /* start simulation */
     simulate();
 
     end_description();
     end_check();
+    print_cpi();
     
-    // close file
+    /* close file */
     fclose(file);
     fclose(ftmp);
     
