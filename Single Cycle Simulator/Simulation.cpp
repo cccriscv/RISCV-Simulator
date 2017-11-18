@@ -83,6 +83,7 @@ void decode(){
             rs1 = getbit(inst, 15, 19);
             imm12 = getbit(inst, 20, 31);
             imm = ext_signed((unsigned int)imm12, 11);
+            func7 = getbit(inst, 25, 31);
             
             execute_I();
             break;
@@ -96,6 +97,7 @@ void decode(){
             imm7 = getbit(inst, 25, 31);
             tmp = (imm7 << 5) | imm5;
             imm = ext_signed(tmp, 11);
+            func7 = getbit(inst, 25, 31);
             
             execute_S();
             break;
@@ -107,6 +109,7 @@ void decode(){
             rs2 = getbit(inst, 20, 24);
             tmp = (getbit(inst, 8, 11) << 1) | (getbit(inst, 25, 30) << 5) | (getbit(inst, 7, 7) << 11) | (getbit(inst, 31, 31) << 12);
             imm = ext_signed(tmp, 12);
+            func7 = getbit(inst, 25, 31);
             
             execute_SB();
             break;
@@ -127,6 +130,7 @@ void decode(){
             rd = getbit(inst, 7, 11);
             tmp = (getbit(inst, 12, 19) << 12) | (getbit(inst, 20, 20) << 11) | (getbit(inst, 21, 30) << 1) | (getbit(inst, 31, 31) << 20);
             imm = ext_signed(tmp, 20);
+            func7 = getbit(inst, 25, 31);
             
             execute_UJ();
             break;
@@ -251,6 +255,8 @@ void execute_R(){
                 case 0x1: // sllw
                     reg[rd] = 0xffffffff & (reg[rs1] << reg[rs2]);
                     break;
+                case 0x4: // divw
+                    reg[rd] = 0xffffffff & (reg[rs1] / reg[rs2]);
                 case 0x5:
                     if(func7 == 0x00)// srlw rd, rs1, rs2
                         reg[rd] = 0xffffffff & (reg[rs1] >> reg[rs2]);

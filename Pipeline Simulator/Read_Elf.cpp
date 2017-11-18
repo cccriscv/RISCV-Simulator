@@ -143,8 +143,7 @@ void read_elf_sections()
     shstroff = elf64_shdr.sh_offset;
     // cout << "offset of .shstrtab" << shstroff<< endl;
     
-	for(int c=0;c<snum;c++)
-	{
+	for(int c=0;c<snum;c++){
 		fprintf(elf," [%3d]\n",c);
 		
         /* relocate file to next section header */
@@ -201,8 +200,7 @@ void read_elf_sections()
 void read_Phdr()
 {
 	Elf64_Phdr elf64_phdr;
-	for(int c=0;c<pnum;c++)
-	{
+	for(int c=0;c<pnum;c++){
 		fprintf(elf," [%3d]\n",c);
 			
 		//file should be relocated
@@ -232,8 +230,7 @@ void read_symtable()
 {
     char symbol_name[40];
 	Elf64_Sym elf64_sym;
-	for(int c=0;c<symnum;c++)
-	{
+	for(int c=0;c<symnum;c++){
 		fprintf(elf," [%3d]   ",c);
 		
 		//file should be relocated
@@ -261,6 +258,7 @@ void read_symtable()
         else if (strcmp(symbol_name, "atexit") == 0){
             endPC = elf64_sym.st_value;
         }
+        // get 'gp' from symbol table.
         else if(strcmp(symbol_name, "__global_pointer$") == 0){
             gp = elf64_sym.st_value;
         }
@@ -274,8 +272,7 @@ void read_symtable()
 unsigned int find_addr(string var_name){
     char symbol_name[40];
     Elf64_Sym elf64_sym;
-    for(int c=0;c<symnum;c++)
-    {
+    for(int c=0;c<symnum;c++){
         //file should be relocated
         fseek(file, symadr + c * sizeof(elf64_sym), SEEK_SET);
         fread(&elf64_sym,1,sizeof(elf64_sym),file);
