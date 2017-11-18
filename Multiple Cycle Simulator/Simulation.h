@@ -24,7 +24,7 @@ bool single_step = false;
 bool run_til = false;
 unsigned int pause_addr = 0;
 
-/* parts of instruction */
+/* parts of instruction [Decode use only] */
 unsigned int opcode=0;
 unsigned int func3=0,func7=0;
 int shamt=0;
@@ -35,7 +35,7 @@ unsigned int imm7=0;
 unsigned int imm5=0;
 unsigned long long imm=0; // the sign-extended immediate number
 
-/* Control signal */
+/* Control signal [Decode use only] */
 char MemRead;
 char MemWrite;
 char MemtoReg;
@@ -48,8 +48,8 @@ char ExtOp;
 char data_type;
 
 /* inner registers */
-unsigned long long alu_rst;  // might also be data_to_reg
-unsigned long long data_from_memory;  // data read out from M[alu_rst]
+unsigned long long alu_rst;  // might also be data_to_reg [Execute use only]
+unsigned long long data_from_memory;  // data read out from M[alu_rst], [Memory stage use only]
 
 /* CPI related */
 long long inst_num = 0;  // number of instructions executed
