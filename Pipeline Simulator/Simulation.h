@@ -9,6 +9,7 @@
 using namespace std;
 
 #define MAX 100000000
+// #define HAZARD
 
 /* Memory & Registers */
 unsigned char memory[MAX]={0};
@@ -17,6 +18,8 @@ REG reg[32]={0};
 /* PC */
 int PC_ = 0; // intially set as entry
 int next_PC; // used in bubbles, PC of next instruction
+extern unsigned int endPC;
+int end_PC = endPC;  // endPC defined in Read_Elf, end_PC used in Simulation
 
 /* whether to debug step by step */
 bool single_step = false;
@@ -110,7 +113,8 @@ void print_cpi();
 void create_bubble(int);
 void initialize_pipeline();
 void move_pipeline();
-bool is_bubble(int);
+bool have_data_hazard();
+void print_pipeline();
 
 /* signed extension of byte/half/word to doubleword
  bit: the index of sign bit(for byte, bit = 7)
@@ -128,8 +132,9 @@ unsigned int getbit(unsigned inst,int s,int e)
 unsigned long long ext_signed(unsigned int src,int bit)
 {
     unsigned long long rst = src, mask = 0xffffffffffffffff << (bit + 1);
-    if (0x1 & (src >> bit)) // sign bit = 1
+    if (0x1 & (src >> bit)){ // sign bit = 1
         rst |= mask;
+    }
     return rst;
 }
 
@@ -243,22 +248,27 @@ void print_memory(){
         cout << "Please input the starting addr(hex): ";
         cin >> hex >> start;
         fflush(stdin);
-        if(start < 0)
+        if(start < 0){
             cerr << "Invalid address."<< endl;
-        else
+        }
+        else{
             break;
+        }
     }
     while (true){
         cout << "Please input the number of bytes you want to check: ";
         cin >> dec >> num;
         fflush(stdin);
-        if(num <= 0)
+        if(num <= 0){
             cerr << "Invalid byte number."<< endl;
-        else
+        }
+        else{
             break;
+        }
     }
-    for(int i = 0; i < num; ++i)
+    for(int i = 0; i < num; ++i){
         cout << setw(2) << setfill('0') << hex << (int)memory[start + i] << " ";
+    }
     cout << endl;
     cout << separator << endl;
 }
@@ -272,8 +282,9 @@ void run_until(){
         cout << "Please input the address(hex) of the instruction: ";
         cin >> hex >> start;
         fflush(stdin);
-        if(start % 2)
+        if(start % 2){
             cerr << start << " does not seem to be an valid addr for an instruction." << endl;
+        }
         else{
             pause_addr = start;
             break;
@@ -301,7 +312,9 @@ void single_step_mode_description(){
         cout << blank << "    Hit 'v', then follow instructions." << endl;
         cout << blank << "(6) Run until a specific instruction"<<endl;
         cout << blank << "    Enter \"ru\"." << endl;
-        cout << blank << "(7) Quit single step mode." << endl;
+        cout << blank << "(7) Check the control signals"<<endl;
+        cout << blank << "    Hit 'c', then follow instructions." << endl;
+        cout << blank << "(8) Quit single step mode." << endl;
         cout << blank << "    Hit key 'q'." << endl;
         if(debug_choices())
             break;
@@ -309,22 +322,46 @@ void single_step_mode_description(){
     cout << separator<< endl;
 }
 
+/* used in debug */
+void check_control_signal(){
+    int index;
+    
+    while (true){
+        cout << "Please input the NUMBER of stage(0 to 4): ";
+        cin >> dec >> index;
+        fflush(stdin);
+        if(index < 0 || index > 4){
+            cerr << "Invalid address."<< endl;
+        }
+        else{
+            break;
+        }
+    }
+    print_control_info(index);
+}
+
+
 /* Select debug choice */
 bool debug_choices(){
     string response;
     while(true){
         cin >> response;
         fflush(stdin);
-        if(response == "g")
+        if(response == "g"){
             break;
-        else if(response == "ar")
+        }
+        else if(response == "ar"){
             print_register();
-        else if(response == "r")
+        }
+        else if(response == "r"){
             print_specific_register();
-        else if(response == "m")
+        }
+        else if(response == "m"){
             print_memory();
-        else if(response == "h" || response == "help")
+        }
+        else if(response == "h" || response == "help"){
             single_step_mode_description();
+        }
         else if (response == "q"){
             cout << blank << "Quit single step mode." << endl;
             single_step = false;
@@ -335,8 +372,12 @@ bool debug_choices(){
             run_until();
             break;
         }
-        else if(response == "v")
+        else if(response == "v"){
             check_var_addr();
+        }
+        else if(response == "c"){
+            check_control_signal();
+        }
         else{
             cerr << "Can not understande '" << response << "'.\nPlease follow instructions."<< endl;
             single_step_mode_description();
@@ -369,18 +410,22 @@ void end_check(){
     while (true){
         cin >> response;
         fflush(stdin);
-        if(response == "ar")
+        if(response == "ar"){
             print_register();
-        else if(response == "r")
+        }
+        else if(response == "r"){
             print_specific_register();
-        else if(response == "m")
+        }
+        else if(response == "m"){
             print_memory();
+        }
         else if(response == "q"){
             cout << blank << "Quit from simulation." << endl;
             break;
         }
-        else if(response == "v")
+        else if(response == "v"){
             check_var_addr();
+        }
         else{
             cerr << "Can not understand '" << response << "'.\nPlease follow instructions."<< endl;
             end_description();
@@ -394,10 +439,12 @@ void check_var_addr(){
     cin >> var_name;
     fflush(stdin);
     unsigned int addr_ = find_addr(var_name);
-    if(addr_ == (-1))
+    if(addr_ == (-1)){
         cerr << "Can not find a global variable with name: "<< var_name << endl;
-    else
+    }
+    else{
         cout << var_name << "'s address(hex) starts from: " << hex << addr_<< endl;
+    }
     cout << separator << endl;
 }
 
@@ -433,6 +480,16 @@ void print_control_info(int index){
     string PCSrc_[5] = {"NORMAL", "R_RS1_IMM", "PC_IMM"};
     string data_type_[5] = {"BYTE", "HALF", "WORD", "DOUBLEWORD"};
     
+    if(info[index].is_bubble == YES){
+        cout << "@@@@@IS BUBBLE@@@@@"<< endl;
+    }
+    cout << "The " << dec << inst_num << " instruction: " << hex << setw(8) << setfill('0') << info[index].inst << endl;
+    cout << "next instruction's PC: " << info[index].PC << endl;
+//#ifdef HAZARD
+    cout << "rs1: "<< reg_names[info[index].rs1] << endl;
+    cout << "rs2: "<< reg_names[info[index].rs2] << endl;
+    cout << "rd: "<< reg_names[info[index].rd] << endl;
+    
     cout << "MemRead: " << yn_[info[index].MemRead] << endl;
     cout << "MemWrite: " << yn_[info[index].MemWrite] << endl;
     cout << "MemtoReg: " << yn_[info[index].MemtoReg] << endl;
@@ -443,6 +500,7 @@ void print_control_info(int index){
     cout << "PCSrc: " << PCSrc_[info[index].PCSrc] << endl;
     cout << "ExtOp: " << yn_[info[index].ExtOp] << endl;
     cout << "data_type: " << data_type_[info[index].data_type] << endl;
+//#endif
     cout << separator << endl;
 }
 
@@ -484,14 +542,10 @@ void print_cpi(){
 
 /* turn info[index] into a bubble */
 void create_bubble(int index){
-    /* mask out control signals */
-    info[index].MemWrite = NO;
-    info[index].MemRead = NO;
-    info[index].MemtoReg = NO;
-    info[index].RegWrite = NO;
+    info[index].is_bubble = YES;
     
     /* change the PC to correct PC for next instruction */
-    info[index].PC = next_PC;
+    info[index].tmp_PC = next_PC;
 }
 
 /* initialize the pipeline with bubbles */
@@ -501,37 +555,112 @@ void initialize_pipeline(){
     }
 }
 
+/* move info[index - 1] to info[index] */
+void copy_stage(int index){
+    info[index].PC = info[index - 1].PC;
+    info[index].tmp_PC = info[index - 1].tmp_PC;
+    info[index].inst = info[index - 1].inst;
+    info[index].imm = info[index - 1].imm;
+    info[index].rs1 = info[index - 1].rs1;
+    info[index].rs2 = info[index - 1].rs2;
+    info[index].rd = info[index - 1].rd;
+    info[index].MemRead = info[index - 1].MemRead;
+    info[index].MemWrite = info[index - 1].MemWrite;
+    info[index].MemtoReg = info[index - 1].MemtoReg;
+    info[index].RegWrite = info[index - 1].RegWrite;
+    info[index].ALUSrcA = info[index - 1].ALUSrcA;
+    info[index].ALUSrcB = info[index - 1].ALUSrcB;
+    info[index].ALUOp = info[index - 1].ALUOp;
+    info[index].PCSrc = info[index - 1].PCSrc;
+    info[index].ExtOp = info[index - 1].ExtOp;
+    info[index].alu_rst = info[index - 1].alu_rst;
+    info[index].data_from_memory = info[index - 1].data_from_memory;
+    info[index].data_type = info[index - 1].data_type;
+    info[index].is_bubble = info[index - 1].is_bubble;
+}
+
+/* move pipeline to next stage */
 void move_pipeline(){
     int info_size = sizeof(struct Instruction_Related);
     
+    if(info[4].is_bubble == NO)
+        cout << "%%%%%FINISH: "<< hex << info[4].tmp_PC << ", inst: "<< info[4].inst << endl << separator << endl;
     // move info[0] ~ info[3] to next stage
     for(int i = 4;i>0;--i){
-        memcpy((void*)(info + i * info_size), (const void*)(info + (i - 1) * info_size), info_size);
+#ifdef DEBUG
+        cout << "*********before************"<< endl;
+        cout << "i = " << i << endl;
+        print_control_info(i);
+        cout << "i - 1 = " << i - 1 << endl;
+        print_control_info(i - 1);
+#endif
+        // memcpy((void*)(info + i * info_size), (const void*)(info + (i - 1) * info_size), info_size);
+        copy_stage(i);
+
+#ifdef DEBUG
+        cout << "*********after************"<< endl;
+        cout << "i = " << i << endl;
+        print_control_info(i);
+        cout << "i - 1 = " << i - 1 << endl;
+        print_control_info(i - 1);
+#endif
     }
     
     // prepare to get info[0] for next instruction
-    info[0].PC = info[1].PC;
+    info[0].tmp_PC = next_PC;
 }
 
-bool is_bubble(int index){
-    return !info[index].MemRead && !info[index].MemWrite
-    && !info[index].MemtoReg && !info[index].RegWrite;
-}
-
+/* whether there is a data hazard for the new instruction in stage */
 bool have_data_hazard(){
-    if(info[0].ALUSrcA == R_RS1){
-        for(int i = 1; i < 3; ++i){
-            if(info[i].RegWrite == YES){
-                return info[0].rs1 == info[i].rd;
+#ifdef HAZARD
+    cout << "entered have_data_hazard()" << endl;
+    for(int i = 0; i< 3;++i){
+        print_control_info(i);
+    }
+#endif
+    
+    for(int i = 1; i < 3; ++i){
+        if(info[i].is_bubble == NO && info[i].RegWrite == YES){
+            if(info[0].ALUSrcA == R_RS1 && info[0].rs1 == info[i].rd)
+                return true;
+            if(info[0].ALUSrcB == R_RS2 && info[0].rs2 == info[i].rd)
+                return true;
+            if(info[0].MemWrite == YES && info[0].rs2 == info[i].rd)
+                return true;
+            if(getbit(info[0].inst, 0, 6) == 0x67 && info[0].rs1 == info[i].rd)
+                return true;
+        }
+    }
+
+    for(int i = 1; i < 5; ++i){     // jalr
+        if(info[i].is_bubble == NO && info[i].RegWrite == YES){
+            if(getbit(info[0].inst, 0, 6) == 0x67 && info[0].rs1 == info[i].rd){
+                return true;
             }
         }
     }
-    if(info[0].ALUSrcB == R_RS2){
-        for(int i = 1; i < 3; ++i){
-            if(info[i].RegWrite == YES){
-                return info[0].rs2 == info[i].rd;
-            }
+
+    return false;
+}
+
+void print_pipeline(){
+    string stage_name[5] = {"Instrution Fetch", "Decode", "Execute",
+        "Memory", "Write Back"};
+    
+    for(int i = 0;i < 5;++i){
+        cout << separator << stage_name[i] << separator << endl;
+        print_control_info(i);
+    }
+    cout << separator << endl;
+}
+
+/* whether the last instruction is in pipeline*/
+bool reach_end(){
+    for(int i = 1; i < 5;++i){
+        if(info[i].is_bubble == NO && info[i].PC == end_PC){
+            return true;
         }
     }
+
     return false;
 }

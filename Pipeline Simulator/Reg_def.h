@@ -4,7 +4,8 @@ typedef unsigned long long REG;
 struct Instruction_Related{
     /* Instruction related */
     unsigned int inst;
-    int PC;
+    int PC; // points to next instruction
+    int tmp_PC;  // PC of this inst
     unsigned long long imm;
     int rs1;
     int rs2;
@@ -27,6 +28,9 @@ struct Instruction_Related{
     
     /* data type */
     char data_type; // related to M read/write
+    
+    /* whether it is a bubble */
+    char is_bubble;
 }info[5];
 
 #define NO 0
