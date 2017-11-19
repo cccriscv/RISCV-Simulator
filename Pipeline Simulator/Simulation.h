@@ -10,6 +10,10 @@ using namespace std;
 
 #define MAX 100000000
 // #define HAZARD
+// #define DEBUG
+
+int data_hazard = 0;
+int control_hazard = 0;
 
 /* Memory & Registers */
 unsigned char memory[MAX]={0};
@@ -107,13 +111,13 @@ void end_check();
 void end_description();
 
 void print_control_info(int);
-void update_cpi(int);
+void update_cpi(bool);
 void print_cpi();
 
 void create_bubble(int);
 void initialize_pipeline();
 void move_pipeline();
-bool have_data_hazard();
+bool have_hazard();
 void print_pipeline();
 
 /* signed extension of byte/half/word to doubleword
@@ -480,9 +484,12 @@ void print_control_info(int index){
     string PCSrc_[5] = {"NORMAL", "R_RS1_IMM", "PC_IMM"};
     string data_type_[5] = {"BYTE", "HALF", "WORD", "DOUBLEWORD"};
     
+#ifdef DEBUG
     if(info[index].is_bubble == YES){
         cout << "@@@@@IS BUBBLE@@@@@"<< endl;
     }
+#endif
+    
     cout << "The " << dec << inst_num << " instruction: " << hex << setw(8) << setfill('0') << info[index].inst << endl;
     cout << "next instruction's PC: " << info[index].PC << endl;
 //#ifdef HAZARD
@@ -505,16 +512,14 @@ void print_control_info(int index){
 }
 
 /* update cycle accordingly */
-void update_cpi(int index){
-    // cout << "update cpi" << endl;
+void update_cpi(bool add_inst){
+    if(add_inst){
+        inst_num += 1;
+    }
     
-    inst_num += 1;
-    
-    cycle_num += 4;  // IF, DC, M, WB only takes 1 cycle
-    
-    switch (info[index].ALUOp) {
+    switch (info[2].ALUOp) {  // depends on execute!
         case MUL:
-            if(info[index].data_type == WORD){
+            if(info[2].data_type == WORD){
                 cycle_num += 1;
             }
             else{
@@ -538,6 +543,8 @@ void print_cpi(){
     cout << "Cycle Count: " << dec << cycle_num << endl;
     cout << "Instruction Count: " << dec << inst_num << endl;
     cout << "CPI = " << (float)cycle_num / (float)inst_num << endl;
+    cout << "Data Hazard = " << data_hazard << endl;
+    cout << "Control Hazard = " << control_hazard << endl;
 }
 
 /* turn info[index] into a bubble */
@@ -582,9 +589,12 @@ void copy_stage(int index){
 /* move pipeline to next stage */
 void move_pipeline(){
     int info_size = sizeof(struct Instruction_Related);
-    
+
+#ifdef DEBUG
     if(info[4].is_bubble == NO)
         cout << "%%%%%FINISH: "<< hex << info[4].tmp_PC << ", inst: "<< info[4].inst << endl << separator << endl;
+#endif
+    
     // move info[0] ~ info[3] to next stage
     for(int i = 4;i>0;--i){
 #ifdef DEBUG
@@ -611,9 +621,9 @@ void move_pipeline(){
 }
 
 /* whether there is a data hazard for the new instruction in stage */
-bool have_data_hazard(){
+bool have_hazard(){
 #ifdef HAZARD
-    cout << "entered have_data_hazard()" << endl;
+    cout << "entered have_hazard()" << endl;
     for(int i = 0; i< 3;++i){
         print_control_info(i);
     }
@@ -621,20 +631,25 @@ bool have_data_hazard(){
     
     for(int i = 1; i < 3; ++i){
         if(info[i].is_bubble == NO && info[i].RegWrite == YES){
-            if(info[0].ALUSrcA == R_RS1 && info[0].rs1 == info[i].rd)
+            if(info[0].ALUSrcA == R_RS1 && info[0].rs1 == info[i].rd){
+                data_hazard++;
                 return true;
-            if(info[0].ALUSrcB == R_RS2 && info[0].rs2 == info[i].rd)
+            }
+            if(info[0].ALUSrcB == R_RS2 && info[0].rs2 == info[i].rd){
+                data_hazard++;
                 return true;
-            if(info[0].MemWrite == YES && info[0].rs2 == info[i].rd)
+            }
+            if(info[0].MemWrite == YES && info[0].rs2 == info[i].rd){ // store
+                data_hazard++;
                 return true;
-            if(getbit(info[0].inst, 0, 6) == 0x67 && info[0].rs1 == info[i].rd)
-                return true;
+            }
         }
     }
 
-    for(int i = 1; i < 5; ++i){     // jalr
+    for(int i = 1; i < 5; ++i){  // jalr
         if(info[i].is_bubble == NO && info[i].RegWrite == YES){
             if(getbit(info[0].inst, 0, 6) == 0x67 && info[0].rs1 == info[i].rd){
+                control_hazard++;
                 return true;
             }
         }

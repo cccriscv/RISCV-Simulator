@@ -56,6 +56,7 @@
      在info里面专门设置一个bubble位吧
  12）li指令其实没有hazard
  13）emmm得存着当前这条指令自己的地址啊宝贝，不然你没法恢复啊
+ 14）一个优化！调换一下五个步骤！把writeback提到execute前面，这样就可以节省出一个周期来！
  */
 
 #include "Simulation.h"
@@ -81,8 +82,8 @@ extern unsigned int pause_addr;
 extern FILE *file;
 extern FILE *ftmp;
 
-// #define DEBUG
-#define LOG
+//#define DEBUG
+//#define LOG
 
 /* load data and instructions */
 void load_memory()
@@ -99,7 +100,7 @@ void load_memory()
 void fetch_instruction(int index){
 #ifdef LOG
     cout << "---in Instruction_Fetch()-----"<< endl;
-    cout << "PC: "<< info[index].tmp_PC<< endl;
+    cout << "PC: "<< hex << info[index].tmp_PC<< endl;
 #endif
     /* put instruction in info[index] */
     info[index].inst = read_memory_word(info[index].tmp_PC);
@@ -136,7 +137,9 @@ void decode(int index){
     }
     cout << "PC: "<< info[index].tmp_PC<< endl;
 #endif
-    
+    if(info[index].is_bubble == YES){
+        return;
+    }
     unsigned int inst = info[index].inst;
     unsigned int tmp;
     
@@ -645,6 +648,9 @@ void execute(int index){
     }
     cout << "PC: "<< info[index].tmp_PC<< endl;
 #endif
+    if(info[index].is_bubble == YES){
+        return;
+    }
     
     unsigned long long op1;
     unsigned long long op2;
@@ -768,7 +774,6 @@ void execute(int index){
             
         case GE:
             alu_rst = (op1 >= op2);
-            cout << "in GE: alu_rst = " << alu_rst << endl;
             break;
         
         case SLT:  // change to signed number
@@ -805,7 +810,9 @@ void execute(int index){
         case PC_IMM:
             if(info[index].alu_rst == 0){  // wrong prediction!
                 info[index].PC = info[index].tmp_PC + 4;
+#ifdef LOG
                 cout << "~~~[[[[[[Wrong Prediction!!]]]]]]~~~"<< endl;
+#endif
                 next_PC = info[index].PC;
                 
                 create_bubble(0);
@@ -824,6 +831,9 @@ void memory_read_write(int index){
     }
     cout << "PC: "<< info[index].tmp_PC<< endl;
 #endif
+    if(info[index].is_bubble == YES){
+        return;
+    }
     
     if(info[index].MemRead == YES){
         switch(info[index].data_type){
@@ -881,6 +891,9 @@ void write_back(int index){
     }
     cout << "PC: "<< info[index].tmp_PC<< endl;
 #endif
+    if(info[index].is_bubble == YES){
+        return;
+    }
     
     if(info[index].RegWrite == YES){
         if(info[index].MemtoReg == YES){
@@ -899,7 +912,7 @@ void simulate()
     if (end_PC % 4 == 2){  // wierd actually.
         end_PC -= 2;
     }
-#ifndef DEBUG
+#ifdef DEBUG
     cout << "endPC: " << hex << end_PC << endl;
 #endif
     
@@ -912,6 +925,8 @@ void simulate()
     
     while(info[4].PC != end_PC)
     {
+        bool add_inst = true;  // whether a new instruction gets into pipeline
+        
         reg[0] = 0; // 一直为零
         
         if (run_til && info[0].PC == pause_addr){
@@ -923,14 +938,20 @@ void simulate()
         fetch_instruction(0);
         
         /* whether there are data hazards */
-        if(have_data_hazard()){
+        if(have_hazard()){
+#ifdef LOG
             cout << "####HAVE HAZARD!!!!!!######"<< endl;
+#endif
             next_PC = info[0].tmp_PC;  // the instruction that will be bubbled out have to execute again
             create_bubble(0);
+            add_inst = false;
         }
         if(reach_end() || info[0].tmp_PC == 0){
+#ifdef LOG
             cout << "Reach end!"<< endl;
+#endif
             create_bubble(0);
+            add_inst = false;
         }
         
         decode(1);
@@ -958,7 +979,7 @@ void simulate()
         move_pipeline();
         
         /* update CPI accordingly */
-        update_cpi(0);
+        update_cpi(add_inst);
     }
 }
 
@@ -986,10 +1007,12 @@ int main(int argc, char * argv[])
             single_step = true;
             break;
         }
-        else if(response == 'n' || response == 'N')
+        else if(response == 'n' || response == 'N'){
             break;
-        else
+        }
+        else{
             cerr << "Can not understand. Please input 'y' or 'n'."<< endl;
+        }
     }
     
     /* preparations */
