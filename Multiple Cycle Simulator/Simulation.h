@@ -438,8 +438,6 @@ void print_control_info(int index){
 
 /* update cycle accordingly */
 void update_cpi(int index){
-    // cout << "update cpi" << endl;
-    
     inst_num += 1;
     
     cycle_num += 4;  // IF, DC, M, WB only takes 1 cycle
@@ -447,18 +445,15 @@ void update_cpi(int index){
     switch (info[index].ALUOp) {
         case MUL:
             if(info[index].data_type == WORD){
-                cout << "32mul"<< endl;
                 cycle_num += 1;
             }
             else{
-                cout << "mul"<< endl;
                 cycle_num += 2;
             }
             break;
             
         case DIV:
         case REM:
-            cout << "div"<< endl;
             cycle_num += 40;
             break;
             

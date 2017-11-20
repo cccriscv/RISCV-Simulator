@@ -817,6 +817,9 @@ void execute(int index){
                 
                 create_bubble(0);
                 create_bubble(1);
+                
+                inst_num -= 2;
+                control_hazard += 2;
             }
             break;
     }
@@ -953,11 +956,16 @@ void simulate()
             create_bubble(0);
             add_inst = false;
         }
-        
+
+#ifndef OPTIMIZE
+        write_back(4);  // try to bubble out one less instruction when data_hazard occurs
+#endif
         decode(1);
         execute(2);
         memory_read_write(3);
+#ifdef OPTIMIZE
         write_back(4);
+#endif
 
 #ifdef DEBUG
         print_pipeline();

@@ -628,8 +628,13 @@ bool have_hazard(){
         print_control_info(i);
     }
 #endif
-    
+
+#ifdef OPTIMIZE
+    for(int i = 1; i < 2;++i){  // write_back() before execute() may save one more instruction
+#endif
+#ifndef OPTIMIZE
     for(int i = 1; i < 3; ++i){
+#endif
         if(info[i].is_bubble == NO && info[i].RegWrite == YES){
             if(info[0].ALUSrcA == R_RS1 && info[0].rs1 == info[i].rd){
                 data_hazard++;
@@ -649,7 +654,7 @@ bool have_hazard(){
     for(int i = 1; i < 5; ++i){  // jalr
         if(info[i].is_bubble == NO && info[i].RegWrite == YES){
             if(getbit(info[0].inst, 0, 6) == 0x67 && info[0].rs1 == info[i].rd){
-                control_hazard++;
+                data_hazard++;
                 return true;
             }
         }

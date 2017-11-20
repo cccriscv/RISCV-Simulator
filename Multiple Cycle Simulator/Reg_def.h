@@ -22,7 +22,7 @@ struct Instruction_Related{
     char ExtOp;
     
     /* inner register */
-    unsigned long long alu_rst;  // might also be data_to_reg
+    unsigned long long alu_rst;           // might also be data_to_reg
     unsigned long long data_from_memory;  // data read out from M[alu_rst]
     
     /* data type */
@@ -43,14 +43,14 @@ struct Instruction_Related{
 #define SRL 7
 #define OR 8
 #define AND 9
-#define REM 10  // %
+#define REM 10   // %
 #define EQ 11
 #define NEQ 12
-#define GT 13  // greater than
-#define LT 14  // less than
-#define GE 15  // greater equal
+#define GT 13    // greater than
+#define LT 14    // less than
+#define GE 15    // greater equal
 #define MULH 16  // get higher 64 bits
-#define SLT 17  // reg[rd] = ((long long)reg[rs1] < (long long)reg[rs2]) ? 1: 0;
+#define SLT 17   // reg[rd] = ((long long)reg[rs1] < (long long)reg[rs2]) ? 1: 0;
 
 // ALU_SrcA
 #define R_RS1 0
@@ -58,16 +58,16 @@ struct Instruction_Related{
 #define ZERO 2
 
 // ALU_SrcB
-#define R_RS2 0
-#define IMM 1
-#define IMM_05 2
-#define IMM_SLL_12 3
+#define R_RS2 0       // reg[rs2]
+#define IMM 1         // imm
+#define IMM_05 2      // imm[5:0]
+#define IMM_SLL_12 3  // (imm << 12)
 #define FOUR 4
 
 // PC_Src
-#define NORMAL 0  // plus 4
+#define NORMAL 0     // PC + 4
 #define R_RS1_IMM  1 // R[rs1] + imm
-#define PC_IMM 2 // PC + imm
+#define PC_IMM 2     // PC + imm
 
 // data_type
 #define BYTE 0
