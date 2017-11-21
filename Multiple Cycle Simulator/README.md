@@ -14,8 +14,12 @@ Each instruction will go through the following five stage:
 
 ### Data Flow
 The data flow in this multiple cycle simulator is shown below.
-Yellow blocks are control signals. Gray blocks for selectors and orange blocks stands for memory/register.
 
+![](https://github.com/VegB/RISCV-Simulator/blob/master/img/multicycle.png)
+
+
+Yellow blocks are control signals.
+Gray blocks for selectors and orange blocks stands for memory/register.
 
 
 ## How to run
