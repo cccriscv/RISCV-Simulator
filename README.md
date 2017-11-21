@@ -1,7 +1,10 @@
 # RISCV Simulator
 
 ## Description
+
 This project is a lab for Architecture Design, PKU.
+The simulator can explain most of the instructions in RISCV RV64I ISA and simulate the process of the program being executed.
+
 
 ### What's this project about?
 The simulator takes the executable file(compiled by riscv64-unknown-elf-gcc) as input. It reads the elf-related info such as:
@@ -12,7 +15,6 @@ The simulator takes the executable file(compiled by riscv64-unknown-elf-gcc) as 
 .data, .sdata, .text are loaded into memory during the process.
 The simulator then simulates the executing process of instructions in main().
 
-User may enter single step debug mode and check register value and memory.
 
 ### Requirements
 - Unix-like OS
@@ -20,6 +22,7 @@ User may enter single step debug mode and check register value and memory.
     - riscv64-unknown-elf-gcc
     - riscv64-unknown-elf-readelf
     - riscv64-unknown-elf-objdump
+
 
 ### A few commands...
 Here lists some of the commands that might help.
@@ -29,6 +32,11 @@ Here lists some of the commands that might help.
     > riscv64-unkown-elf-readelf a.out > xxx.readelf
 - check objdump of target C program
     > riscv64-unknown-elf-objdump -S a.out > xxx.objdump
+
+
+### Debug mode
+User may enter single step debug mode and check register value and memory.
+
 
 ## Contents
 This project realized three versions of RISCV Simulator:
