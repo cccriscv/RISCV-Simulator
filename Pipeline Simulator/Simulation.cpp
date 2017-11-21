@@ -205,7 +205,7 @@ void decode(int index){
             rd = getbit(inst, 7, 11);
             imm20 = getbit(inst, 12, 31);
             func7 = getbit(inst, 25, 31);
-            tmp = imm20;// << 12;
+            tmp = imm20;
             imm = ext_signed(tmp, 31);
             
             fill_control_U(index);
